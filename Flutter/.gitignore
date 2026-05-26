@@ -6,3 +6,6 @@ pubspec.lock
 # FVM Version Cache
 .fvm/
 .fvmrc
+
+# AIGC
+AGENTS.md
