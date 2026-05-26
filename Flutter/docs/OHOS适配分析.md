@@ -13,7 +13,7 @@
 | `ios/` | iOS 原生插件实现，包含播放器封装、平台视图、下载、PIP、事件分发。 |
 | `ohos/` | OHOS HAR 插件壳和 LiteAVSDK HAR 依赖。当前只有极少量占位实现。 |
 | `example/` | Flutter Demo，已存在 `example/ohos` 工程壳。 |
-| `generator/txplayer_message.dart` | Pigeon 源文件，用于生成 Dart/Android/iOS 通信代码。当前命令未生成 OHOS ETS 代码。 |
+| `generator/txplayer_message.dart` | Pigeon 源文件，用于生成 Dart/Android/iOS/OHOS 通信代码。项目已接入支持 OHOS 的 Pigeon，当前注释命令还需要补上 `--arkts_out` 示例。 |
 | `docs/` | 项目文档。 |
 
 ## 2. 项目已有功能
@@ -66,9 +66,9 @@ flutter:
 
 - Dart `TXPlayerVideo` 只支持 Android `AndroidView` 和 iOS `UiKitView`，OHOS 会直接抛 `platform not support`。
 - OHOS 侧没有注册 `FTXRenderViewType` 平台视图工厂。
-- OHOS 侧没有 Pigeon HostApi / FlutterApi 实现，Dart 控制器调用无法到达 LiteAVSDK。
+- OHOS 侧还没有把 Pigeon 生成的 ETS HostApi / FlutterApi 注册进插件，Dart 控制器调用仍无法到达 LiteAVSDK。
 - OHOS 侧没有 `TXVodPlayer`、`V2TXLivePlayer`、下载、预下载、事件回调、全局配置等封装。
-- `generator/txplayer_message.dart` 当前生成命令只覆盖 Dart、ObjC、Java，没有 ETS 输出。
+- 支持 OHOS 的 Pigeon 已在 `pubspec.yaml` 接入，能通过 `--arkts_out` 生成 `FtxMessages.ets`；当前还未生成并落地到 `ohos/src/main/ets`。
 - `example/ohos` 只配置了基础网络权限，还没有验证播放器功能。
 
 因此，OHOS 适配的核心工作不是只在 Dart 增加 `OhosView`，而是需要补齐完整的 ETS 插件实现。
@@ -78,7 +78,7 @@ flutter:
 建议按四层推进：
 
 1. Dart 层增加 OHOS 分支，保证 Widget 能创建 `OhosView`，控制器不再拒绝 OHOS。
-2. OHOS 插件层实现 Pigeon 同名通道，接住 `TXFlutterSuperPlayerPluginAPI`、`TXFlutterVodPlayerApi`、`TXFlutterLivePlayerApi`、`TXFlutterDownloadApi`、`TXFlutterNativeAPI`。
+2. OHOS 插件层使用已接入的 OHOS Pigeon 生成 ETS 消息代码，再实现并注册 `TXFlutterSuperPlayerPluginAPI`、`TXFlutterVodPlayerApi`、`TXFlutterLivePlayerApi`、`TXFlutterDownloadApi`、`TXFlutterNativeAPI`。
 3. OHOS 渲染层实现 `FTXRenderViewFactory` / `FTXRenderView`，内部用 ArkUI `XComponent` 拿到 `surfaceId`，再绑定给 LiteAVSDK。
 4. OHOS 播放器层封装 LiteAVSDK 的 `TXVodPlayer`、`V2TXLivePlayer`、`TXVodDownloadManager`、`TXVodPreloadManager` 等能力，并通过 FlutterApi 把事件回传给 Dart。
 
@@ -440,25 +440,51 @@ attachRenderView(view: FTXRenderView): void {
 
 - Dart 侧 `lib/Core/txplayer_messages.dart` 已生成。
 - Android/iOS 已有 Pigeon 生成代码。
-- OHOS 没有 ETS 生成代码。
+- 支持 OHOS 的 Pigeon 已接入：`pubspec.yaml` 的 `dev_dependencies.pigeon` 指向 `br_pigeon-v26.1.5_ohos`，该分支基于 `pigeon@26.1.5` 增加 `--arkts_out`。
+- 已验证当前工程可以用 `fvm dart run pigeon --arkts_out ...` 从 `generator/txplayer_message.dart` 生成 `FtxMessages.ets`，因此不需要从零手写全部 Pigeon 编解码和通道代码。
+- 还缺的是把生成的 `FtxMessages.ets` 落到 `ohos/src/main/ets`，并在 `SuperPlayerPlugin.ets` 中注册 HostApi / FlutterApi。
 
 需要做：
 
-- 优先确认当前 OHOS Flutter 工具链是否支持 Pigeon 生成 ETS/ArkTS。
-- 如果支持，扩展 `generator/txplayer_message.dart` 的生成命令，输出到类似：
-  - `ohos/src/main/ets/messages/FtxMessages.ets`
-- 如果不支持，需要手写 ETS 通道，但通道名和编码必须与 Dart 生成代码一致。
+- 使用已接入的 OHOS Pigeon 生成 ArkTS/ETS 消息代码，建议输出到：
+  - `ohos/src/main/ets/components/plugin/messages/FtxMessages.ets`
+- 更新 `generator/txplayer_message.dart` 顶部注释命令，把 OHOS 输出纳入标准生成流程。
+- 在 `SuperPlayerPlugin.ets` 中 import 生成的 `FtxMessages.ets`，调用各 HostApi 的 `setup(...)` 注册消息处理器。
+- 不建议手写完整 Pigeon codec。针对实例通道 suffix 这类生成器未覆盖的项目需求，在生成产物外增加薄封装即可。
+
+推荐生成命令：
+
+```bash
+fvm dart run pigeon \
+  --input generator/txplayer_message.dart \
+  --dart_out lib/Core/txplayer_messages.dart \
+  --objc_header_out ios/Classes/messages/FtxMessages.h \
+  --objc_source_out ios/Classes/messages/FtxMessages.m \
+  --java_out ./android/src/main/java/com/tencent/vod/flutter/messages/FtxMessages.java \
+  --java_package "com.tencent.vod.flutter.messages" \
+  --arkts_out ohos/src/main/ets/components/plugin/messages/FtxMessages.ets \
+  --copyright_header generator/txplayer_copy_right.txt
+```
+
+注意：本仓库要求从仓库根目录执行 `fvm dart`，不要直接用 `dart run`。
 
 通道名示例：
 
 ```text
 dev.flutter.pigeon.super_player.TXFlutterSuperPlayerPluginAPI.createVodPlayer
-dev.flutter.pigeon.super_player.TXFlutterVodPlayerApi.startVodPlay<playerIdSuffix>
-dev.flutter.pigeon.super_player.TXFlutterLivePlayerApi.startLivePlay<playerIdSuffix>
+dev.flutter.pigeon.super_player.TXFlutterVodPlayerApi.startVodPlay.<playerId>
+dev.flutter.pigeon.super_player.TXFlutterLivePlayerApi.startLivePlay.<playerId>
 dev.flutter.pigeon.super_player.TXFlutterDownloadApi.startPreLoad
 ```
 
 控制器创建播放器后会使用 `messageChannelSuffix: _playerId.toString()`，因此每个播放器实例都要注册一组带 suffix 的 HostApi。
+
+这里是当前接入后仍需处理的项目级兼容点：
+
+- Dart 生成代码、Android 生成代码、iOS 生成代码都支持 `messageChannelSuffix`，播放器控制器实际会调用带 `.<playerId>` 后缀的通道。
+- 当前接入的 ohos Pigeon 能生成 ArkTS 文件，但生成的 ArkTS `HostApi.setup(binaryMessenger, api)` 和 `FlutterApi` 构造函数没有 `messageChannelSuffix` 参数，通道名是固定的无后缀形式。
+- 因此本项目不能只把 `FtxMessages.ets` 生成出来就结束。采用临时方案：在生成后的 `FtxMessages.ets` 外包一层手写注册工具，用 `BasicMessageChannel` 注册带 `.<playerId>` 的 Vod/Live HostApi，并用带后缀的 FlutterApi 回调 Dart。
+- 不修改 ohos Pigeon 的 ArkTS 生成器。薄封装只负责实例级通道名拼接和消息转发，数据结构、codec、全局 API 仍使用 Pigeon 生成代码。
 
 需要实现的 API 组：
 
@@ -475,6 +501,25 @@ dev.flutter.pigeon.super_player.TXFlutterDownloadApi.startPreLoad
 - `TXVodPlayerFlutterAPI`
 - `TXLivePlayerFlutterAPI`
 - `TXDownloadFlutterAPI`
+
+接入方式建议：
+
+```ts
+// 全局 API：无 suffix，插件 attach 时注册一次。
+TXFlutterSuperPlayerPluginAPI.setup(binaryMessenger, pluginApi);
+TXFlutterNativeAPI.setup(binaryMessenger, nativeApi);
+TXFlutterDownloadApi.setup(binaryMessenger, downloadApi);
+
+// 播放器 API：createVodPlayer/createLivePlayer 分配 playerId 后注册带 suffix 的实例 API。
+TXFlutterVodPlayerApi.setup(binaryMessenger, `${playerId}`, vodPlayerApi);
+TXFlutterLivePlayerApi.setup(binaryMessenger, `${playerId}`, livePlayerApi);
+
+// 回调 Dart：每个播放器实例使用相同 playerId suffix。
+const vodFlutterApi = new TXVodPlayerFlutterAPI(binaryMessenger, `${playerId}`);
+const liveFlutterApi = new TXLivePlayerFlutterAPI(binaryMessenger, `${playerId}`);
+```
+
+上面的签名是目标形态；实际落地时通过实例通道薄封装实现同等通道名，不修改 ohos Pigeon 生成器。
 
 ### 6.3 全局插件能力
 
@@ -711,7 +756,7 @@ ohos/src/main/ets/components/plugin/
 
 其中：
 
-- `FtxMessages.ets` 负责 Pigeon 通信结构。
+- `FtxMessages.ets` 由 ohos 版 Pigeon 通过 `--arkts_out` 生成，负责 Pigeon 数据结构、codec、HostApi/FlutterApi 通道基础代码。
 - `SuperPlayerPlugin.ets` 负责全局注册、播放器 Map、全局 API。
 - `FTXVodPlayer.ets` / `FTXLivePlayer.ets` 负责每个播放器实例的 HostApi 和 SDK 封装。
 - `FTXRenderViewFactory.ets` / `FTXRenderView.ets` 负责 ArkUI `XComponent` 和 surface 绑定。
@@ -720,7 +765,8 @@ ohos/src/main/ets/components/plugin/
 
 | 风险 | 说明 | 建议 |
 | --- | --- | --- |
-| Pigeon ETS 缺失 | Dart 已依赖 Pigeon 生成通道，OHOS 没实现会全部 MissingPlugin。 | 优先解决，可生成则生成，不可生成则手写同名通道。 |
+| Pigeon ETS 未生成/未注册 | 支持 OHOS 的 Pigeon 已接入，但 OHOS 侧没生成并注册 HostApi 仍会 MissingPlugin。 | 用已接入的 Pigeon `--arkts_out` 生成 `FtxMessages.ets` 并接入 `SuperPlayerPlugin.ets`。 |
+| ArkTS suffix 支持不足 | 当前接入的 Pigeon 能生成 ArkTS，但生成的 `setup`/FlutterApi 不带 `messageChannelSuffix`，而播放器实例依赖 `.<playerId>` 通道。 | 不修改 Pigeon 生成器；在生成产物外增加 Vod/Live 实例 API 和回调 API 的薄封装。 |
 | 渲染 surface 生命周期 | `OhosView` 创建、ArkUI `XComponent.onLoad`、`setPlayerView` 调用顺序不固定。 | View 和 Player 都做 pending 绑定，surface ready 后再次 attach。 |
 | 多 View 切换 | Dart 注释明确支持多个 viewId 切换。 | Factory 必须 Map 缓存，不要单例 View。 |
 | 渲染尺寸 | LiteAVSDK 文档要求 render target 设置前确保宽高正确。 | `onLoad` 和尺寸变化时更新 `setXComponentSurfaceRect`。 |
@@ -773,7 +819,8 @@ ohos/src/main/ets/components/plugin/
 1. 修改 `lib/Core/txplayer_widget.dart`，增加 `OhosView` 分支和 `_onCreateOhosView`。
 2. 在 OHOS `SuperPlayerPlugin.ets` 注册 `FTXRenderViewType` 平台视图。
 3. 实现 `FTXRenderViewFactory.ets` 和 `FTXRenderView.ets`，用 `XComponentType.SURFACE` 获取 `surfaceId`。
-4. 实现最小 Pigeon HostApi：
+4. 用已接入的 OHOS Pigeon 生成 `FtxMessages.ets`，并增加实例通道薄封装处理 `messageChannelSuffix`。
+5. 实现最小 Pigeon HostApi：
    - `createVodPlayer`
    - `releasePlayer`
    - `setGlobalLicense`
@@ -781,9 +828,9 @@ ohos/src/main/ets/components/plugin/
    - `TXFlutterVodPlayerApi.startVodPlay`
    - `TXFlutterVodPlayerApi.setPlayerView`
    - `TXFlutterVodPlayerApi.stop/pause/resume/isPlaying`
-5. 实现 `TXVodPlayer` wrapper，打通 URL 点播。
-6. 实现点播事件回调到 Dart，确认状态机正常。
-7. 再补直播、下载和高级能力。
+6. 实现 `TXVodPlayer` wrapper，打通 URL 点播。
+7. 实现点播事件回调到 Dart，确认状态机正常。
+8. 再补直播、下载和高级能力。
 
 ## 11. 结论
 
@@ -794,6 +841,6 @@ ohos/src/main/ets/components/plugin/
 3. `FTXRenderView` 必须通过 ArkUI `XComponent` 获取 `surfaceId`。
 4. `controller.setPlayerView(viewId)` 必须在 OHOS 原生侧找到对应 `FTXRenderView`。
 5. 点播用 `TXVodPlayer.setVideoRenderTarget(surfaceId)`，直播用 `V2TXLivePlayer.setRenderView(surfaceId)`。
-6. Pigeon HostApi / FlutterApi 必须补齐，否则 Dart 控制器无法调用 OHOS LiteAVSDK，也无法接收播放事件。
+6. Pigeon HostApi / FlutterApi 必须通过 `--arkts_out` 生成并接入；播放器实例通道还必须支持 `messageChannelSuffix`，否则 Dart 控制器无法调用 OHOS LiteAVSDK，也无法接收播放事件。
 
 先按 P0 打通点播 URL 播放和渲染，再逐步补齐直播、下载、字幕、音轨、PIP 等能力，是风险最低的适配路径。
