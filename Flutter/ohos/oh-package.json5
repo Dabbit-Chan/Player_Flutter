@@ -5,5 +5,7 @@
   "main": "index.ets",
   "author": "",
   "license": "Apache-2.0",
-  "dependencies": {}
+  "dependencies": {
+    "liteavsdk": "file:libs/LiteAVSDK_Professional_13.2.0.8729.har"
+  }
 }

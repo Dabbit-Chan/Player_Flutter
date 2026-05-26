@@ -11,6 +11,14 @@
     {
       "name": "EntryAbility_label",
       "value": "super_player_example"
+    },
+    {
+      "name": "internet_reason",
+      "value": "internet_reason"
+    },
+    {
+      "name": "network_info_reason",
+      "value": "network_info_reason"
     }
   ]
 }
