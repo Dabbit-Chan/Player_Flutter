@@ -13,7 +13,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-#  pigeon: ^22.6.0
+  pigeon: ^22.6.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -30,6 +30,9 @@ flutter:
         package: com.tencent.vod.flutter
         pluginClass: SuperPlayerPlugin
       ios:
+        pluginClass: SuperPlayerPlugin
+      ohos:
+        package: com.tencent.vod.flutter
         pluginClass: SuperPlayerPlugin
 
   # To add assets to your plugin package, add an assets section, like this:
