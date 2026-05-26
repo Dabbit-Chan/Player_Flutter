@@ -13,7 +13,7 @@
 | `ios/` | iOS 原生插件实现，包含播放器封装、平台视图、下载、PIP、事件分发。 |
 | `ohos/` | OHOS HAR 插件壳和 LiteAVSDK HAR 依赖。当前只有极少量占位实现。 |
 | `example/` | Flutter Demo，已存在 `example/ohos` 工程壳。 |
-| `generator/txplayer_message.dart` | Pigeon 源文件，用于生成 Dart/Android/iOS/OHOS 通信代码。项目已接入支持 OHOS 的 Pigeon，当前注释命令还需要补上 `--arkts_out` 示例。 |
+| `generator/txplayer_message.dart` | Pigeon 源文件，用于生成 Dart/Android/iOS/OHOS 通信代码。项目使用支持 OHOS 的 Pigeon，注释命令需要补上 `--arkts_out` 示例。 |
 | `docs/` | 项目文档。 |
 
 ## 2. 项目已有功能
@@ -78,7 +78,7 @@ flutter:
 建议按四层推进：
 
 1. Dart 层增加 OHOS 分支，保证 Widget 能创建 `OhosView`，控制器不再拒绝 OHOS。
-2. OHOS 插件层使用已接入的 OHOS Pigeon 生成 ETS 消息代码，再实现并注册 `TXFlutterSuperPlayerPluginAPI`、`TXFlutterVodPlayerApi`、`TXFlutterLivePlayerApi`、`TXFlutterDownloadApi`、`TXFlutterNativeAPI`。
+2. OHOS 插件层使用支持 OHOS 的 Pigeon 生成 ETS 消息代码，再实现并注册 `TXFlutterSuperPlayerPluginAPI`、`TXFlutterVodPlayerApi`、`TXFlutterLivePlayerApi`、`TXFlutterDownloadApi`、`TXFlutterNativeAPI`。
 3. OHOS 渲染层实现 `FTXRenderViewFactory` / `FTXRenderView`，内部用 ArkUI `XComponent` 拿到 `surfaceId`，再绑定给 LiteAVSDK。
 4. OHOS 播放器层封装 LiteAVSDK 的 `TXVodPlayer`、`V2TXLivePlayer`、`TXVodDownloadManager`、`TXVodPreloadManager` 等能力，并通过 FlutterApi 把事件回传给 Dart。
 
@@ -89,7 +89,7 @@ flutter:
 | P0 | Pigeon/消息通道 + 渲染 + 点播 URL 播放 | 没有这些就无法播放视频。 |
 | P1 | 直播播放 + 基础事件 + 音量/静音/seek/暂停恢复 | 覆盖主功能。 |
 | P2 | 配置、缓存、码率、字幕、多音轨、截图、下载/预下载 | 完整功能对齐。 |
-| P3 | PIP、系统亮度、音频焦点、方向监听、TRTC 发布 | 平台差异较大，可按业务决定支持或降级。 |
+| P3 | PIP、系统亮度、音频焦点、方向监听、TRTC/推流发布 | 平台差异较大；其中 TRTC/推流和方向/旋转在当前 HAR 中已有公开接口，PIP 和音频焦点需要按 OHOS 系统能力单独评估。 |
 
 ## 5. 最重要功能：渲染如何用 OhosView 绑定到 ArkUI
 
@@ -440,13 +440,13 @@ attachRenderView(view: FTXRenderView): void {
 
 - Dart 侧 `lib/Core/txplayer_messages.dart` 已生成。
 - Android/iOS 已有 Pigeon 生成代码。
-- 支持 OHOS 的 Pigeon 已接入：`pubspec.yaml` 的 `dev_dependencies.pigeon` 指向 `br_pigeon-v26.1.5_ohos`，该分支基于 `pigeon@26.1.5` 增加 `--arkts_out`。
-- 已验证当前工程可以用 `fvm dart run pigeon --arkts_out ...` 从 `generator/txplayer_message.dart` 生成 `FtxMessages.ets`，因此不需要从零手写全部 Pigeon 编解码和通道代码。
-- 还缺的是把生成的 `FtxMessages.ets` 落到 `ohos/src/main/ets`，并在 `SuperPlayerPlugin.ets` 中注册 HostApi / FlutterApi。
+- `pubspec.yaml` 的 `dev_dependencies.pigeon` 指向 `br_pigeon-v26.1.5_ohos`，该分支基于 `pigeon@26.1.5` 增加 `--arkts_out`。
+- 当前工程可通过 `fvm dart run pigeon --arkts_out ...` 从 `generator/txplayer_message.dart` 生成 `FtxMessages.ets`，因此不需要从零手写全部 Pigeon 编解码和通道代码。
+- 需要把生成的 `FtxMessages.ets` 落到 `ohos/src/main/ets`，并在 `SuperPlayerPlugin.ets` 中注册 HostApi / FlutterApi。
 
 需要做：
 
-- 使用已接入的 OHOS Pigeon 生成 ArkTS/ETS 消息代码，建议输出到：
+- 使用支持 OHOS 的 Pigeon 生成 ArkTS/ETS 消息代码，建议输出到：
   - `ohos/src/main/ets/components/plugin/messages/FtxMessages.ets`
 - 更新 `generator/txplayer_message.dart` 顶部注释命令，把 OHOS 输出纳入标准生成流程。
 - 在 `SuperPlayerPlugin.ets` 中 import 生成的 `FtxMessages.ets`，调用各 HostApi 的 `setup(...)` 注册消息处理器。
@@ -479,11 +479,11 @@ dev.flutter.pigeon.super_player.TXFlutterDownloadApi.startPreLoad
 
 控制器创建播放器后会使用 `messageChannelSuffix: _playerId.toString()`，因此每个播放器实例都要注册一组带 suffix 的 HostApi。
 
-这里是当前接入后仍需处理的项目级兼容点：
+播放器实例通道需要单独处理 suffix：
 
 - Dart 生成代码、Android 生成代码、iOS 生成代码都支持 `messageChannelSuffix`，播放器控制器实际会调用带 `.<playerId>` 后缀的通道。
-- 当前接入的 ohos Pigeon 能生成 ArkTS 文件，但生成的 ArkTS `HostApi.setup(binaryMessenger, api)` 和 `FlutterApi` 构造函数没有 `messageChannelSuffix` 参数，通道名是固定的无后缀形式。
-- 因此本项目不能只把 `FtxMessages.ets` 生成出来就结束。采用临时方案：在生成后的 `FtxMessages.ets` 外包一层手写注册工具，用 `BasicMessageChannel` 注册带 `.<playerId>` 的 Vod/Live HostApi，并用带后缀的 FlutterApi 回调 Dart。
+- OHOS Pigeon 能生成 ArkTS 文件，但生成的 ArkTS `HostApi.setup(binaryMessenger, api)` 和 `FlutterApi` 构造函数没有 `messageChannelSuffix` 参数，通道名是固定的无后缀形式。
+- 适配时在生成后的 `FtxMessages.ets` 外包一层手写注册工具，用 `BasicMessageChannel` 注册带 `.<playerId>` 的 Vod/Live HostApi，并用带后缀的 FlutterApi 回调 Dart。
 - 不修改 ohos Pigeon 的 ArkTS 生成器。薄封装只负责实例级通道名拼接和消息转发，数据结构、codec、全局 API 仍使用 Pigeon 生成代码。
 
 需要实现的 API 组：
@@ -559,8 +559,8 @@ Dart 入口：`TXFlutterNativeAPI`
 | 获取页面亮度 | 0.0 到 1.0 | 从当前 window 属性读取。 |
 | 获取系统亮度 | 0.0 到 1.0 | 使用系统设置 API；若权限受限则返回当前页面亮度。 |
 | 系统音量 | 0.0 到 1.0 | 使用 audio manager 获取/设置媒体音量。 |
-| 音频焦点 | Android 专用 | OHOS 可按系统音频焦点 API 实现；第一阶段可 no-op。 |
-| PIP 支持判断 | 返回固定错误码体系 | 若 OHOS 未实现 PIP，返回 `ERROR_PIP_FEATURE_NOT_SUPPORT` 对应值。 |
+| 音频焦点 | Android 专用 | 当前 HAR 未公开 `requestAudioFocus`/`abandonAudioFocus` 类接口，OHOS 应按系统 audio manager / audio session 能力实现；第一阶段可 no-op。 |
+| PIP 支持判断 | 返回固定错误码体系 | 当前 HAR 的公开 ArkTS 声明未暴露 PIP API，先返回 `ERROR_PIP_FEATURE_NOT_SUPPORT`；如后续要支持，需基于 OHOS 窗口/小窗能力或 LiteAVSDK 的开放接口单独验证。 |
 | 系统亮度监听 | Android 专用 | OHOS 可选实现；初期 no-op。 |
 
 ### 6.5 点播播放
@@ -692,15 +692,15 @@ OHOS LiteAVSDK 类型定义已导出：
 
 ### 6.9 画中画
 
-Android/iOS 已实现 PIP，但 OHOS 需要重新评估。
+Android/iOS 已实现 PIP。当前 `LiteAVSDK_Professional_13.2.0.8729.har` 的公开 ArkTS 声明没有暴露可直接调用的 PIP / PictureInPicture API。PIP 在 OHOS 上应作为独立平台能力处理，不能直接复用 Android 的 Activity PIP 实现。
 
 建议：
 
-- 第一阶段先返回“不支持”错误码，保证 API 不崩溃。
+- 第一阶段返回“不支持”错误码，保证 API 不崩溃。
 - `isDeviceSupportPip` 返回 `ERROR_PIP_FEATURE_NOT_SUPPORT`。
 - `enterPictureInPictureMode` 返回同样错误码。
 - `exitPictureInPictureMode` no-op。
-- 如业务必须支持，再基于 OHOS 对应窗口/小窗能力单独设计，不建议直接照搬 Android 的 Activity PIP 实现。
+- 如业务必须支持，再基于 OHOS 窗口/小窗能力，或 LiteAVSDK 后续公开的 PIP ArkTS API 单独设计。
 
 ### 6.10 TRTC / 发布相关能力
 
@@ -714,9 +714,12 @@ Android/iOS 已实现 PIP，但 OHOS 需要重新评估。
 
 这些在当前插件里更偏 Android 特殊能力。OHOS 适配建议：
 
-- 初期明确返回不支持或 no-op。
-- 如果 LiteAVSDK OHOS Professional HAR 确认提供 TRTC 互通能力，再单独设计 wrapper。
-- 不应让这些接口阻塞点播和直播基础适配。
+- `TRTCCloud` 可用于 TRTC 房间内发布：`getTRTCShareInstance`、`enterRoom`、`startLocalPreview`、`startLocalAudio`、`muteLocalVideo`、`muteLocalAudio`、`startPublishMediaStream`、`stopPublishMediaStream` 等。
+- `V2TXLivePusher` 可用于直播推流：`createV2TXLivePusher`、`startCamera`、`startMicrophone`、`startPush`、`stopPush`、`pauseVideo`、`pauseAudio` 等。
+- 方向和旋转能力可用：`V2TXLivePlayer.setRenderRotation`、`V2TXLivePusher.setRenderRotation`、`TRTCCloud.setGravitySensorAdaptiveMode`、`LiteavAppRotationMonitor` 等。
+- Dart 现有 `TXVodPlayerController.enableTRTC/publishVideo/publishAudio` 是播放器插件内的跨端封装语义。OHOS 侧需要单独设计 wrapper，明确使用 `TRTCCloud` 进房发布还是使用 `V2TXLivePusher` 推 URL 流，并补齐 license、权限、surface 绑定和事件回调。
+- 第一阶段不实现时，接口返回“暂未适配”或 no-op。
+- 这些接口放在点播和直播基础适配之后处理。
 
 ### 6.11 示例工程
 
@@ -765,14 +768,17 @@ ohos/src/main/ets/components/plugin/
 
 | 风险 | 说明 | 建议 |
 | --- | --- | --- |
-| Pigeon ETS 未生成/未注册 | 支持 OHOS 的 Pigeon 已接入，但 OHOS 侧没生成并注册 HostApi 仍会 MissingPlugin。 | 用已接入的 Pigeon `--arkts_out` 生成 `FtxMessages.ets` 并接入 `SuperPlayerPlugin.ets`。 |
-| ArkTS suffix 支持不足 | 当前接入的 Pigeon 能生成 ArkTS，但生成的 `setup`/FlutterApi 不带 `messageChannelSuffix`，而播放器实例依赖 `.<playerId>` 通道。 | 不修改 Pigeon 生成器；在生成产物外增加 Vod/Live 实例 API 和回调 API 的薄封装。 |
+| Pigeon ETS 未生成/未注册 | OHOS 侧没生成并注册 HostApi 会导致 MissingPlugin。 | 用支持 OHOS 的 Pigeon `--arkts_out` 生成 `FtxMessages.ets` 并接入 `SuperPlayerPlugin.ets`。 |
+| ArkTS suffix 支持不足 | OHOS Pigeon 生成的 `setup`/FlutterApi 不带 `messageChannelSuffix`，而播放器实例依赖 `.<playerId>` 通道。 | 不修改 Pigeon 生成器；在生成产物外增加 Vod/Live 实例 API 和回调 API 的薄封装。 |
 | 渲染 surface 生命周期 | `OhosView` 创建、ArkUI `XComponent.onLoad`、`setPlayerView` 调用顺序不固定。 | View 和 Player 都做 pending 绑定，surface ready 后再次 attach。 |
 | 多 View 切换 | Dart 注释明确支持多个 viewId 切换。 | Factory 必须 Map 缓存，不要单例 View。 |
 | 渲染尺寸 | LiteAVSDK 文档要求 render target 设置前确保宽高正确。 | `onLoad` 和尺寸变化时更新 `setXComponentSurfaceRect`。 |
 | 事件码不一致 | Dart 状态机依赖 Android/iOS 事件码。 | OHOS 侧转换成现有事件码。 |
 | SDK 版本不一致 | 插件版本 13.3.0，OHOS HAR 文件为 13.2.0。 | 升级 HAR 或建立能力差异表。 |
-| 平台专属功能 | PIP、音频焦点、方向监听、TRTC 等不能照搬。 | 先降级，后按业务补。 |
+| PIP 能力未见公开 ArkTS API | HAR 公开声明未暴露 PIP API。 | PIP 先返回不支持；后续基于 OHOS 窗口/小窗能力或 LiteAVSDK 公开接口单独验证。 |
+| 音频焦点需走系统能力 | HAR 未公开播放器层 `requestAudioFocus`/`abandonAudioFocus`，该能力应由 OHOS 系统 audio manager / audio session 承担。 | 第一阶段 no-op 或按 OHOS 系统音频会话实现。 |
+| TRTC/推流 wrapper 未适配 | HAR 已导出 `TRTCCloud` 和 `V2TXLivePusher`，但 Dart 现有 TRTC 发布接口语义需要重新设计 OHOS wrapper。 | 按业务优先级补 wrapper；第一阶段返回“暂未适配”或 no-op。 |
+| 方向/旋转策略需重做 | HAR 有 `setRenderRotation`、`setGravitySensorAdaptiveMode`、`LiteavAppRotationMonitor` 等能力，但不能直接照搬 Android 方向服务。 | 结合 OHOS 传感器/显示方向和 SDK 旋转接口实现，先保证播放器渲染方向正确。 |
 | 下载文件权限 | OHOS 文件系统和权限模型不同。 | 优先使用应用沙箱缓存目录。 |
 
 ## 9. 分阶段验收清单
@@ -808,18 +814,18 @@ ohos/src/main/ets/components/plugin/
 
 ### P3：平台增强能力
 
-- PIP 或明确不支持。
+- PIP 明确不支持，或基于 OHOS 小窗/公开 API 验证后再支持。
 - 页面亮度、系统音量、音频焦点。
-- 方向监听。
+- 方向监听和旋转策略，复用 HAR 已公开的 `setRenderRotation` / `setGravitySensorAdaptiveMode` 等接口。
 - 直播 SEI、debug view、本地录制、snapshot。
-- TRTC 发布相关能力。
+- TRTC/推流发布 wrapper，基于 HAR 已公开的 `TRTCCloud` / `V2TXLivePusher` 能力适配。
 
 ## 10. 最小可行开发顺序
 
 1. 修改 `lib/Core/txplayer_widget.dart`，增加 `OhosView` 分支和 `_onCreateOhosView`。
 2. 在 OHOS `SuperPlayerPlugin.ets` 注册 `FTXRenderViewType` 平台视图。
 3. 实现 `FTXRenderViewFactory.ets` 和 `FTXRenderView.ets`，用 `XComponentType.SURFACE` 获取 `surfaceId`。
-4. 用已接入的 OHOS Pigeon 生成 `FtxMessages.ets`，并增加实例通道薄封装处理 `messageChannelSuffix`。
+4. 用支持 OHOS 的 Pigeon 生成 `FtxMessages.ets`，并增加实例通道薄封装处理 `messageChannelSuffix`。
 5. 实现最小 Pigeon HostApi：
    - `createVodPlayer`
    - `releasePlayer`
