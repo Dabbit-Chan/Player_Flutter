@@ -1,5 +1,40 @@
 # Super Player Flutter 插件 OHOS 适配分析
 
+## 0. 当前实现状态（2026-05-27）
+
+本轮适配已将 OHOS 从占位 `MethodChannel("super_player")` 推进到可编译的 Pigeon + PlatformView + LiteAVSDK 播放链路：
+
+- Dart `TXPlayerVideo` 已增加 `TargetPlatform.ohos` 分支，通过 `OhosView` 创建 `FTXRenderViewType`，并复用 `viewId -> setPlayerView(viewId)` 绑定语义。
+- OHOS 侧已生成 `FtxMessages.ets`，并注册 `TXFlutterSuperPlayerPluginAPI`、`TXFlutterNativeAPI`、`TXFlutterDownloadApi`、带 `.<playerId>` suffix 的 VOD/Live HostApi，以及对应 FlutterApi 回调。
+- 渲染层已实现 `FTXRenderViewFactory` / `FTXRenderView`，使用 ArkUI `XComponentType.SURFACE` 获取 `surfaceId`，支持 `setPlayerView` 早于或晚于 surface ready 的 pending attach。
+- VOD 已接入 `TXVodPlayer` 的 URL/FileId 播放、基础控制、配置、码率/音轨/字幕源和播放/网络状态回调。
+- Live 已接入 `V2TXLivePlayer` 的 URL 播放、基础控制、SEI、stream switch、统计、截图回调占位和 observer 事件回调。
+- 下载已接入 `TXVodDownloadManager`；URL 预下载已接入 `TXVodPreloadManager`。当前内置 LiteAVSDK OHOS HAR 只暴露 URL 预下载接口，未暴露 FileId 预下载接口，因此 FileId 预下载在 OHOS 上会回调错误事件而不是伪造成功。
+- 全局 License 已接入 `V2TXLivePremier.setLicence` 和 `onLicenceLoaded`，并通过 `TXPluginFlutterAPI.onSDKListener` 回传 Dart。
+
+版本差异需要持续记录：插件 `pubspec.yaml` 版本为 `13.3.0`，OHOS 本地依赖为 `LiteAVSDK_Professional_13.2.0.8729.har`。因此部分能力需要按 13.2 OHOS HAR 的实际导出接口降级。
+
+已验证：
+
+- `fvm dart analyze` 无 error；退出码为 2，原因是仓库既有 33 个 warning/info（缺少 `flutter_lints`、示例 immutable/deprecated/unused 等）。
+- `fvm flutter build hap --debug --no-pub --no-codesign` 在 `example` 工程可构建成功，产物为 `example/build/ohos/hap/entry-default-unsigned.hap`。
+
+构建注意事项：
+
+- Flutter/Dart 命令使用 `fvm flutter` / `fvm dart`。
+- OHOS 构建需要配置 `DEVECO_SDK_HOME`、`HOS_SDK_HOME`、`OHOS_SDK_HOME` 指向 DevEco SDK，并把 DevEco `ohpm/bin`、`hvigor/bin` 加入 `PATH`。
+- bytecode HAR 依赖要求在项目级 `example/ohos/build-profile.json5` 的 `app.products[].buildOption.strictMode.useNormalizedOHMUrl` 设置为 `true`。
+- 未配置调试签名时，正常 debug 构建会提示在 DevEco Studio 中配置 Signing Configs；本地编译验证可用 `--no-codesign` 生成 unsigned HAP。
+
+当前能力边界：
+
+| 优先级 | 状态 |
+| --- | --- |
+| P0 | Pigeon 通道、OHOS 平台视图、VOD URL/FileId 播放入口、基础控制、事件回调和 unsigned HAP 编译已完成。 |
+| P1 | Live URL 播放入口、基础控制、observer 事件和渲染重绑定代码已完成；仍需真机/模拟器验证。 |
+| P2 | 下载、URL 预下载、码率、音轨、字幕源、SEI 已接入；FileId 预下载、VOD H.264 截图和字幕样式仍受当前 HAR 接口或实现范围限制。 |
+| P3 | PIP、系统亮度、音频焦点、商业 DRM、PDT Seek、雪碧图预览、TRTC/推流发布等能力保持稳定 no-op、默认值或不支持返回。 |
+
 ## 1. 项目是什么
 
 本项目是腾讯云播放器 SDK 的 Flutter 插件，包名为 `super_player`，当前版本为 `13.3.0`。它把腾讯云 LiteAVSDK 的点播、直播、下载、预下载、播放器渲染、全局 License、音量亮度等原生能力封装成 Flutter 可调用的 Dart API。

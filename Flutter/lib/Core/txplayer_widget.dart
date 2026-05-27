@@ -92,12 +92,24 @@ class TXPlayerVideoState extends State<TXPlayerVideo> {
             onPlatformViewCreated: _onCreateIOSView
         ),
       );
+    } else if (defaultTargetPlatform == TargetPlatform.ohos) {
+      return IgnorePointer(
+          ignoring: true,
+          child: OhosView(
+            key: _platformViewKey,
+            onPlatformViewCreated: _onCreateOhosView,
+            viewType: _kFTXPlayerRenderViewType,
+            layoutDirection: TextDirection.ltr,
+            creationParams: {_kFTXAndroidRenderTypeKey : widget.renderViewType.index},
+            creationParamsCodec: const StandardMessageCodec(),
+          )
+      );
     } else {
       throw ArgumentError("platform not support: $defaultTargetPlatform");
     }
   }
 
-  void _onCreateAndroidView(int id) {
+  void _completeViewCreated(int id) {
     if (_viewIdCompleter.isCompleted) {
       _viewIdCompleter = Completer();
     }
@@ -106,13 +118,16 @@ class TXPlayerVideoState extends State<TXPlayerVideo> {
     widget.onRenderViewCreatedListener?.call(id);
   }
 
+  void _onCreateAndroidView(int id) {
+    _completeViewCreated(id);
+  }
+
   void _onCreateIOSView(int id) {
-    if (_viewIdCompleter.isCompleted) {
-      _viewIdCompleter = Completer();
-    }
-    _viewId = id;
-    _viewIdCompleter.complete(id);
-    widget.onRenderViewCreatedListener?.call(id);
+    _completeViewCreated(id);
+  }
+
+  void _onCreateOhosView(int id) {
+    _completeViewCreated(id);
   }
 
   Future<int> getViewId() async {

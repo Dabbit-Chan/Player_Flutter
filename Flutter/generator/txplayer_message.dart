@@ -8,13 +8,14 @@ import 'package:pigeon/pigeon.dart';
 /// pigeon原始原件，由此文件生成messages原生通信代码
 /// 生成命令如下，使用生成命令的时候，需要实现注释掉以上两个import导入
 /*
-    dart run pigeon \
+    fvm dart run pigeon \
     --input generator/txplayer_message.dart \
     --dart_out lib/Core/txplayer_messages.dart \
     --objc_header_out ios/Classes/messages/FtxMessages.h \
     --objc_source_out ios/Classes/messages/FtxMessages.m \
     --java_out ./android/src/main/java/com/tencent/vod/flutter/messages/FtxMessages.java \
     --java_package "com.tencent.vod.flutter.messages" \
+    --arkts_out ohos/src/main/ets/components/plugin/messages/FtxMessages.ets \
     --copyright_header generator/txplayer_copy_right.txt
  */
 
