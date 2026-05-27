@@ -16,6 +16,7 @@ function FTXRenderBuilder(params: FTXRenderBuilderParams) {
 struct FTXRenderSurface {
   renderView?: FTXRenderView;
   private xComponentId: string = FTX_XCOMPONENT_PREFIX;
+  private xComponentController: XComponentController = new XComponentController();
 
   aboutToAppear(): void {
     this.xComponentId = `${FTX_XCOMPONENT_PREFIX}${this.renderView?.getViewId() ?? 0}`;
@@ -25,28 +26,13 @@ struct FTXRenderSurface {
     XComponent({
       id: this.xComponentId,
       type: XComponentType.SURFACE,
-      libraryname: ''
+      libraryname: 'flutter',
+      controller: this.xComponentController
     })
       .width('100%')
       .height('100%')
-      .onLoad((context?: object) => {
-        let surfaceId = this.xComponentId;
-        let candidate: ESObject = context as ESObject;
-        if (candidate !== undefined && candidate !== null) {
-          if (candidate.getXComponentSurfaceId !== undefined) {
-            surfaceId = candidate.getXComponentSurfaceId() as string;
-          } else if (candidate.surfaceId !== undefined) {
-            surfaceId = candidate.surfaceId as string;
-          }
-          if (candidate.setXComponentSurfaceRect !== undefined) {
-            candidate.setXComponentSurfaceRect({
-              offsetX: 0,
-              offsetY: 0,
-              surfaceWidth: 1,
-              surfaceHeight: 1
-            });
-          }
-        }
+      .onLoad(() => {
+        const surfaceId = this.xComponentController.getXComponentSurfaceId();
         this.renderView?.onSurfaceReady(surfaceId);
       })
       .onDestroy(() => {
