@@ -37,7 +37,7 @@
 
 ## 3. 当前 OHOS 现状
 
-项目已经有 OHOS 平台声明和目录，但只是初始状态，不能认为已经完成适配。
+项目已经有 OHOS 平台声明和目录，适配仍处于初始状态。
 
 已存在内容：
 
@@ -88,8 +88,8 @@ flutter:
 | --- | --- | --- |
 | P0 | Pigeon/消息通道 + 渲染 + 点播 URL 播放 | 没有这些就无法播放视频。 |
 | P1 | 直播播放 + 基础事件 + 音量/静音/seek/暂停恢复 | 覆盖主功能。 |
-| P2 | 配置、缓存、码率、字幕、多音轨、截图、下载/预下载 | 完整功能对齐。 |
-| P3 | PIP、系统亮度、音频焦点、方向监听、TRTC/推流发布 | 平台差异较大；其中 TRTC/推流和方向/旋转在当前 HAR 中已有公开接口，PIP 和音频焦点需要按 OHOS 系统能力单独评估。 |
+| P2 | 配置、缓存、码率、多音轨、外挂字幕、SEI、H.264 截图、下载/预下载、安全下载 | 对齐鸿蒙播放器 SDK 已支持的播放器能力。 |
+| P3 | PIP、系统亮度、音频焦点、方向监听、画面填充/旋转、试看/弹幕/水印 UI、TRTC/推流发布 | 这些不是鸿蒙播放器 SDK 内置能力，需按业务层或 OHOS 系统能力单独设计。 |
 
 ## 5. 最重要功能：渲染如何用 OhosView 绑定到 ArkUI
 
@@ -539,7 +539,7 @@ Dart 入口：`SuperPlayerPlugin`
 | `setGlobalEnv` | 使用 `V2TXLivePremier.setEnvironment(envConfig)`。 |
 | `setUserId` | 使用 `V2TXLivePremier.setUserId(userId)`。 |
 | `setLicenseFlexibleValid` | 当前 OHOS LiteAVSDK 类型中存在内部 `setLicenseFlexibleValid`，需确认是否开放；不可用则返回 no-op 并记录。 |
-| `setDrmProvisionEnv` | OHOS 类型中未看到直接公开接口，需确认 SDK 支持；不支持则文档化为暂不支持。 |
+| `setDrmProvisionEnv` | 鸿蒙播放器 SDK 不支持商业 DRM，返回不支持或 no-op。 |
 
 License 回调：
 
@@ -554,13 +554,13 @@ Dart 入口：`TXFlutterNativeAPI`
 
 | 功能 | Android/iOS 语义 | OHOS 建议 |
 | --- | --- | --- |
-| 页面亮度 | 当前页面窗口亮度 | 用 OHOS window API 设置当前 Ability window 亮度。 |
-| 恢复亮度 | 恢复系统默认或进入前亮度 | 记录设置前亮度，恢复时写回。 |
-| 获取页面亮度 | 0.0 到 1.0 | 从当前 window 属性读取。 |
-| 获取系统亮度 | 0.0 到 1.0 | 使用系统设置 API；若权限受限则返回当前页面亮度。 |
+| 页面亮度 | 当前页面窗口亮度 | 鸿蒙播放器 SDK 不支持亮度调节；如业务需要，用 OHOS window API 在插件层实现，不作为 LiteAVSDK 能力。 |
+| 恢复亮度 | 恢复系统默认或进入前亮度 | 与页面亮度同一套 OHOS window 实现，记录设置前亮度后写回。 |
+| 获取页面亮度 | 0.0 到 1.0 | 从当前 window 属性读取；不可读时返回约定默认值。 |
+| 获取系统亮度 | 0.0 到 1.0 | 鸿蒙播放器 SDK 不支持；如走系统设置 API，需要处理权限限制。 |
 | 系统音量 | 0.0 到 1.0 | 使用 audio manager 获取/设置媒体音量。 |
 | 音频焦点 | Android 专用 | 当前 HAR 未公开 `requestAudioFocus`/`abandonAudioFocus` 类接口，OHOS 应按系统 audio manager / audio session 能力实现；第一阶段可 no-op。 |
-| PIP 支持判断 | 返回固定错误码体系 | 当前 HAR 的公开 ArkTS 声明未暴露 PIP API，先返回 `ERROR_PIP_FEATURE_NOT_SUPPORT`；如后续要支持，需基于 OHOS 窗口/小窗能力或 LiteAVSDK 的开放接口单独验证。 |
+| PIP 支持判断 | 返回固定错误码体系 | 鸿蒙播放器 SDK 不支持基础画中画和高级画中画，返回 `ERROR_PIP_FEATURE_NOT_SUPPORT`。 |
 | 系统亮度监听 | Android 专用 | OHOS 可选实现；初期 no-op。 |
 
 ### 6.5 点播播放
@@ -576,14 +576,14 @@ OHOS LiteAVSDK 已有 `TXVodPlayer`，类型定义包含 `startVodPlay`、`pause
 | 创建播放器 | `createVodPlayer` | `new TXVodPlayer(context)` |
 | URL 播放 | `startVodPlay(url)` | 构造 `TXVodDef.TXPlayInfoParams.createWithUrl(url)` 后调用 `player.startVodPlay(params)` |
 | FileId 播放 | `startVodPlayWithParams` | 构造 `TXPlayInfoParams.createWithFileId(appId, fileId, psign)` |
-| DRM 播放 | `startPlayDrm` | 检查 OHOS SDK Widevine/DRM 接口是否开放；可用则映射，缺失则返回错误。 |
+| DRM 播放 | `startPlayDrm` | 鸿蒙播放器 SDK 不支持商业 DRM，返回不支持。HLS 加密、HLS 私有加密按普通 URL/FileID 播放链路处理。 |
 | 停止 | `stop(isNeedClear)` | `player.stopPlay(isNeedClear)` |
 | 播放状态 | `isPlaying` | `player.isPlaying()` |
 | 暂停/恢复 | `pause` / `resume` | `player.pause()` / `player.resume()` |
 | 静音 | `setMute` | `player.setMute(mute)` |
 | 循环 | `setLoop` / `isLoop` | `player.setLoop(loop)` / `player.isLoop()` |
 | seek | `seek` | `player.seek(seconds, accurate)` |
-| PDT seek | `seekToPdtTime` | 当前类型定义有 `seekToPdtTime(ms)`，直接映射。 |
+| PDT seek | `seekToPdtTime` | 鸿蒙播放器 SDK 不支持 PDT Seek，返回不支持或 no-op。 |
 | 倍速 | `setRate` | `player.setRate(rate)` |
 | 码率 | `getSupportedBitrates`、`setBitrateIndex`、`getBitrateIndex` | 映射到 LiteAVSDK 对应接口，并转换为 Dart 期望的 Map/List。 |
 | 起播时间 | `setStartTime` | `player.setStartTime(seconds)` |
@@ -591,12 +591,12 @@ OHOS LiteAVSDK 已有 `TXVodPlayer`，类型定义包含 `startVodPlay`、`pause
 | 配置 | `setConfig` | 构造 `TXVodPlayConfig`，映射重试、headers、seek、缓存、preferredResolution 等字段。 |
 | 播放时间 | `getCurrentPlaybackTime` 等 | 映射到秒单位接口；如果底层是 ms，需要除以 1000。 |
 | 视频宽高 | `getWidth` / `getHeight` | `player.getWidth()` / `player.getHeight()` |
-| token | `setToken` | 确认 OHOS SDK 是否有 token 接口；没有则作为 FileId 参数的一部分处理。 |
+| token | `setToken` | 用于 Key 防盗链和私有加密播放时按 SDK 参数模型接入；没有独立接口时作为 FileID/URL 参数处理。 |
 | 字幕 | `addSubtitleSource`、`getSubtitleTrackInfo` | OHOS 类型定义已有字幕接口，可映射。 |
 | 音轨 | `getAudioTrackInfo`、`selectTrack`、`deselectTrack` | OHOS 类型定义已有轨道接口，可映射。 |
-| 字幕样式 | `setSubtitleStyle` | OHOS `TXCVodPlayer` 类型有 `setSubtitleStyle`，如果外层 `TXVodPlayer` 未公开，需确认可用性。 |
-| 截图 | `snapshot` / `getImageSprite` | VOD 类型有 `snapshotAsync(uiContext, nativeXComponentID)`；雪碧图接口需确认 OHOS SDK 支持。 |
-| HEVC/扩展配置 | `setStringOption` | 按 SDK 支持映射，不支持的 key 记录 no-op。 |
+| 字幕样式 | `setSubtitleStyle` | 外挂字幕属于鸿蒙播放器 SDK 支持项；样式能力按 SDK 公开接口映射，不可用时保留默认样式。 |
+| 截图 | `snapshot` / `getImageSprite` | 截图仅支持 H.264；进度条缩略图/雪碧图预览不属于鸿蒙 SDK 支持项。 |
+| HEVC/扩展配置 | `setStringOption` | H.265 硬解属于支持项；HEVC 降级播放不支持，相关 key 记录 no-op 或返回不支持。 |
 
 点播事件：
 
@@ -623,16 +623,16 @@ OHOS LiteAVSDK 类型定义包含 `createV2TXLivePlayer(context)`、`releaseV2TX
 | 直播模式 | `setLiveMode` | 如果 OHOS SDK 创建时才设置 mode，需要在创建时保存或重建。 |
 | 音量/静音 | `setVolume` / `setMute` | 映射 `setPlayoutVolume` / `setMute` 等接口。 |
 | 切流 | `switchStream` | `livePlayer.switchStream(url)` |
-| appId | `setAppID` | 确认 OHOS SDK 是否仍需此接口；不支持则 no-op。 |
+| appId | `setAppID` | 按直播 SDK 参数模型接入；不需要时 no-op。 |
 | 配置 | `setConfig` | 映射重试、缓存上下限；废弃字段不必强行支持。 |
 | 硬解 | `enableHardwareDecode` | 映射 SDK 硬解开关；若无接口，返回 false。 |
 | SEI | `enableReceiveSeiMessage` | OHOS V2TXLivePlayer 类型包含 SEI 相关能力，应映射。 |
-| 调试浮层 | `showDebugView` | 映射 SDK 接口；不支持则 no-op。 |
+| 调试浮层 | `showDebugView` | 鸿蒙播放器 SDK 不包含自定义 UI 能力，作为调试辅助接口处理；不支持则 no-op。 |
 | 高级属性 | `setProperty` | 映射 `setProperty(key, value)`。 |
 | 码流信息 | `getSupportedBitrate` | 映射 SDK 返回结构到 `FSteamInfo` 期望字段。 |
 | 缓存参数 | `setCacheParams` | 映射 `setCacheParams(minTime, maxTime)`。 |
-| 本地录制 | `startLocalRecording` / `stopLocalRecording` | OHOS V2TXLivePlayer 类型定义包含本地录制参数，应映射。 |
-| 截图 | `snapshot` | 映射 SDK snapshot，回调 `onSnapshotComplete`。 |
+| 本地录制 | `startLocalRecording` / `stopLocalRecording` | 鸿蒙播放器 SDK 未将该能力列为支持项，默认不纳入基础适配；业务需要时单独验证接口和权限。 |
+| 截图 | `snapshot` | 截图仅支持 H.264，回调 `onSnapshotComplete`。 |
 
 直播事件：
 
@@ -649,12 +649,13 @@ controller.setRenderMode(FTXPlayerRenderMode.ADJUST_RESOLUTION);
 controller.setRenderMode(FTXPlayerRenderMode.FULL_FILL_CONTAINER);
 ```
 
-Android/iOS 当前自己维护缩放和裁剪逻辑。OHOS 建议：
+鸿蒙播放器 SDK 未将屏幕填充、设置播放器尺寸、视频镜像、视频旋转列为鸿蒙 SDK 支持项。Flutter 插件仍然需要完成最基础的画面显示区域绑定；Fit/Fill、旋转、镜像等表现应作为 ArkUI/Flutter 容器层能力设计，不能假定 LiteAVSDK OHOS 已内置。
 
-- 直播优先使用 `V2TXLivePlayer.setRenderFillMode`：
-  - `ADJUST_RESOLUTION` -> `V2TXLiveFillModeFit`
-  - `FULL_FILL_CONTAINER` -> `V2TXLiveFillModeFill`
-- 点播如果 `TXVodPlayer` 没有直接 fill mode 接口，需要在 `XComponent` 容器层做尺寸计算，或确认底层 `TXCVodPlayer` 是否提供 render mode。
+OHOS 建议：
+
+- 优先保证 `XComponent` 宽高与 Flutter Widget 布局一致。
+- `ADJUST_RESOLUTION` 和 `FULL_FILL_CONTAINER` 在容器层做尺寸计算；如果 SDK 明确公开 fill mode 接口，再作为优化接入。
+- 视频旋转和镜像按业务层需求在 ArkUI/Flutter 或 SDK 公开接口中择一实现，基础适配不把它们列为 SDK 对齐项。
 - 需要监听视频宽高变化，按容器宽高计算实际显示区域。Dart 已经有 `resizeVideoWidth`、`resizeVideoHeight`、`videoLeft`、`videoTop`、`videoRight`、`videoBottom` 字段，OHOS 可复用这套数据。
 
 ### 6.8 下载和预下载
@@ -692,7 +693,7 @@ OHOS LiteAVSDK 类型定义已导出：
 
 ### 6.9 画中画
 
-Android/iOS 已实现 PIP。当前 `LiteAVSDK_Professional_13.2.0.8729.har` 的公开 ArkTS 声明没有暴露可直接调用的 PIP / PictureInPicture API。PIP 在 OHOS 上应作为独立平台能力处理，不能直接复用 Android 的 Activity PIP 实现。
+Android/iOS 已实现 PIP。鸿蒙播放器 SDK 不支持基础画中画和高级画中画；PIP 在 OHOS 上应作为独立平台能力处理，不能直接复用 Android 的 Activity PIP 实现。
 
 建议：
 
@@ -700,7 +701,7 @@ Android/iOS 已实现 PIP。当前 `LiteAVSDK_Professional_13.2.0.8729.har` 的�
 - `isDeviceSupportPip` 返回 `ERROR_PIP_FEATURE_NOT_SUPPORT`。
 - `enterPictureInPictureMode` 返回同样错误码。
 - `exitPictureInPictureMode` no-op。
-- 如业务必须支持，再基于 OHOS 窗口/小窗能力，或 LiteAVSDK 后续公开的 PIP ArkTS API 单独设计。
+- 如业务必须支持，再基于 OHOS 窗口/小窗能力单独设计。
 
 ### 6.10 TRTC / 发布相关能力
 
@@ -712,11 +713,9 @@ Android/iOS 已实现 PIP。当前 `LiteAVSDK_Professional_13.2.0.8729.har` 的�
 - `publishAudio`
 - `unpublishAudio`
 
-这些在当前插件里更偏 Android 特殊能力。OHOS 适配建议：
+这些在当前插件里更偏 Android 特殊能力，不属于鸿蒙播放器 SDK 的播放器能力。OHOS 适配建议：
 
-- `TRTCCloud` 可用于 TRTC 房间内发布：`getTRTCShareInstance`、`enterRoom`、`startLocalPreview`、`startLocalAudio`、`muteLocalVideo`、`muteLocalAudio`、`startPublishMediaStream`、`stopPublishMediaStream` 等。
-- `V2TXLivePusher` 可用于直播推流：`createV2TXLivePusher`、`startCamera`、`startMicrophone`、`startPush`、`stopPush`、`pauseVideo`、`pauseAudio` 等。
-- 方向和旋转能力可用：`V2TXLivePlayer.setRenderRotation`、`V2TXLivePusher.setRenderRotation`、`TRTCCloud.setGravitySensorAdaptiveMode`、`LiteavAppRotationMonitor` 等。
+- 不把 TRTC/推流发布放入播放器 P0/P1/P2 对齐范围。
 - Dart 现有 `TXVodPlayerController.enableTRTC/publishVideo/publishAudio` 是播放器插件内的跨端封装语义。OHOS 侧需要单独设计 wrapper，明确使用 `TRTCCloud` 进房发布还是使用 `V2TXLivePusher` 推 URL 流，并补齐 license、权限、surface 绑定和事件回调。
 - 第一阶段不实现时，接口返回“暂未适配”或 no-op。
 - 这些接口放在点播和直播基础适配之后处理。
@@ -775,10 +774,11 @@ ohos/src/main/ets/components/plugin/
 | 渲染尺寸 | LiteAVSDK 文档要求 render target 设置前确保宽高正确。 | `onLoad` 和尺寸变化时更新 `setXComponentSurfaceRect`。 |
 | 事件码不一致 | Dart 状态机依赖 Android/iOS 事件码。 | OHOS 侧转换成现有事件码。 |
 | SDK 版本不一致 | 插件版本 13.3.0，OHOS HAR 文件为 13.2.0。 | 升级 HAR 或建立能力差异表。 |
-| PIP 能力未见公开 ArkTS API | HAR 公开声明未暴露 PIP API。 | PIP 先返回不支持；后续基于 OHOS 窗口/小窗能力或 LiteAVSDK 公开接口单独验证。 |
+| SDK 能力边界 | HAR 类型声明可能包含非播放器核心能力，适配范围需要以鸿蒙播放器 SDK 能力边界为准。 | DASH、PDT Seek、PIP、商业 DRM、雪碧图预览、显示效果、亮度调节等按不支持或业务层能力处理。 |
+| PIP 不属于 SDK 支持项 | 鸿蒙播放器 SDK 不支持基础画中画和高级画中画。 | PIP 先返回不支持；业务需要时基于 OHOS 窗口/小窗能力单独设计。 |
 | 音频焦点需走系统能力 | HAR 未公开播放器层 `requestAudioFocus`/`abandonAudioFocus`，该能力应由 OHOS 系统 audio manager / audio session 承担。 | 第一阶段 no-op 或按 OHOS 系统音频会话实现。 |
-| TRTC/推流 wrapper 未适配 | HAR 已导出 `TRTCCloud` 和 `V2TXLivePusher`，但 Dart 现有 TRTC 发布接口语义需要重新设计 OHOS wrapper。 | 按业务优先级补 wrapper；第一阶段返回“暂未适配”或 no-op。 |
-| 方向/旋转策略需重做 | HAR 有 `setRenderRotation`、`setGravitySensorAdaptiveMode`、`LiteavAppRotationMonitor` 等能力，但不能直接照搬 Android 方向服务。 | 结合 OHOS 传感器/显示方向和 SDK 旋转接口实现，先保证播放器渲染方向正确。 |
+| TRTC/推流 wrapper 未适配 | TRTC/推流发布不属于鸿蒙播放器 SDK 的播放器能力，Dart 现有接口语义也需要重设。 | 按业务优先级补 wrapper；第一阶段返回“暂未适配”或 no-op。 |
+| 显示效果需在容器层设计 | 鸿蒙播放器 SDK 不支持屏幕填充、播放器尺寸、镜像、旋转、锁屏、亮度调节等显示效果。 | 基础适配只保证画面绑定和尺寸正确；Fit/Fill、旋转、镜像、亮度在 ArkUI/Flutter 或 OHOS 系统层单独实现。 |
 | 下载文件权限 | OHOS 文件系统和权限模型不同。 | 优先使用应用沙箱缓存目录。 |
 
 ## 9. 分阶段验收清单
@@ -799,7 +799,7 @@ ohos/src/main/ets/components/plugin/
 - `TXLivePlayerController.startLivePlay(url)` 可播放。
 - pause/resume/stop/isPlaying 正常。
 - 静音、音量、seek、循环、倍速可用。
-- `setRenderMode` 的 Fit/Fill 行为正确。
+- Flutter Widget 与 ArkUI `XComponent` 尺寸绑定正确，基础画面不拉伸错位。
 - 横竖屏或 Widget 重建后重新绑定 viewId 不黑屏。
 
 ### P2：完整播放器能力
@@ -807,18 +807,19 @@ ohos/src/main/ets/components/plugin/
 - 点播 fileId 播放。
 - 全局缓存目录和缓存大小生效。
 - 码率列表、码率切换。
-- 字幕、多音轨、字幕样式。
-- 截图、雪碧图。
-- 下载、预下载和回调。
+- 多音轨、外挂字幕、SEI 回调。
+- H.264 截图。
+- 下载、预下载、安全下载和回调。
 - License 回调、SDK 版本、日志级别、环境切换。
+- HLS 加密、HLS 私有加密、Key 防盗链、Referer 黑白名单播放链路正常。
 
 ### P3：平台增强能力
 
-- PIP 明确不支持，或基于 OHOS 小窗/公开 API 验证后再支持。
-- 页面亮度、系统音量、音频焦点。
-- 方向监听和旋转策略，复用 HAR 已公开的 `setRenderRotation` / `setGravitySensorAdaptiveMode` 等接口。
-- 直播 SEI、debug view、本地录制、snapshot。
-- TRTC/推流发布 wrapper，基于 HAR 已公开的 `TRTCCloud` / `V2TXLivePusher` 能力适配。
+- PIP 明确返回不支持，或基于 OHOS 小窗能力形成独立方案。
+- 页面亮度、音频焦点、亮度监听等系统能力。
+- Fit/Fill、镜像、旋转、锁屏、封面、贴片等显示和 UI 能力。
+- 试看、弹幕、动态水印、直播时移 UI。
+- TRTC/推流发布 wrapper。
 
 ## 10. 最小可行开发顺序
 
@@ -836,7 +837,7 @@ ohos/src/main/ets/components/plugin/
    - `TXFlutterVodPlayerApi.stop/pause/resume/isPlaying`
 6. 实现 `TXVodPlayer` wrapper，打通 URL 点播。
 7. 实现点播事件回调到 Dart，确认状态机正常。
-8. 再补直播、下载和高级能力。
+8. 再补直播、下载和鸿蒙播放器 SDK 支持的高级播放器能力。
 
 ## 11. 结论
 
@@ -849,4 +850,4 @@ ohos/src/main/ets/components/plugin/
 5. 点播用 `TXVodPlayer.setVideoRenderTarget(surfaceId)`，直播用 `V2TXLivePlayer.setRenderView(surfaceId)`。
 6. Pigeon HostApi / FlutterApi 必须通过 `--arkts_out` 生成并接入；播放器实例通道还必须支持 `messageChannelSuffix`，否则 Dart 控制器无法调用 OHOS LiteAVSDK，也无法接收播放事件。
 
-先按 P0 打通点播 URL 播放和渲染，再逐步补齐直播、下载、字幕、音轨、PIP 等能力，是风险最低的适配路径。
+先按 P0 打通点播 URL 播放和渲染，再逐步补齐直播、下载、外挂字幕、多音轨、SEI、H.264 截图和安全下载等鸿蒙播放器 SDK 支持能力。画中画、亮度、显示效果、试看/弹幕/水印 UI、TRTC/推流发布等能力按平台层或业务层需求单独设计。
