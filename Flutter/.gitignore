@@ -8,4 +8,5 @@ pubspec.lock
 .fvmrc
 
 # AIGC
+.codex
 AGENTS.md
