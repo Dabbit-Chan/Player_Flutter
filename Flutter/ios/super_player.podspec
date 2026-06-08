@@ -15,7 +15,7 @@ end
 puts "[SuperPlayer] project_root: #{project_root}"
 pubspec_path = File.join(project_root, 'pubspec.yaml') if project_root
 
-sdk_version = '13.3.20845'
+sdk_version = '13.2.20652'
 sub_spec_version = 'professional'
 ALLOWED_VERSIONS = ['player', 'professional', 'premium', 'professional_premium']
 
