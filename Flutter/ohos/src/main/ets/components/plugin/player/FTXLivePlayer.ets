@@ -7,7 +7,7 @@ import {
   V2TXLivePlayer,
   V2TXLivePlayerObserver,
   V2TXLivePlayerStatistics
-} from 'liteavsdk/src/main/ets/h/i';
+} from '@tencentcloud/liteavsdk_professional/src/main/ets/h/i';
 import FTXEventUtils from '../FTXEventUtils';
 import {
   BoolMsg,

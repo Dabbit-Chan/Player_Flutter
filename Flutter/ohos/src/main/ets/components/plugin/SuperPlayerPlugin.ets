@@ -23,8 +23,8 @@ import {
   V2TXLiveLogLevel,
   V2TXLivePremier,
   V2TXLivePremierObserver
-} from 'liteavsdk/src/main/ets/h/i';
-import { TXVodGlobalSetting } from 'liteavsdk/src/main/ets/k/Index';
+} from '@tencentcloud/liteavsdk_professional/src/main/ets/h/i';
+import { TXVodGlobalSetting } from '@tencentcloud/liteavsdk_professional/src/main/ets/k/Index';
 import SuffixBinaryMessenger from './channel/SuffixBinaryMessenger';
 import FTXDownloadManager from './download/FTXDownloadManager';
 import FTXLivePlayer from './player/FTXLivePlayer';

@@ -6,7 +6,7 @@ import {
   TXVodDownloadManager,
   TXVodDownloadMediaInfo,
   TXVodPreloadManager
-} from 'liteavsdk/src/main/ets/k/Index';
+} from '@tencentcloud/liteavsdk_professional/src/main/ets/k/Index';
 import FTXEventUtils from '../FTXEventUtils';
 import {
   BoolMsg,

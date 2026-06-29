@@ -6,6 +6,6 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "liteavsdk": "file:libs/LiteAVSDK_Professional_13.2.0.8729.har"
+    "@tencentcloud/liteavsdk_professional": "file:libs/LiteAVSDK_Professional_13.2.0.8738.har"
   }
 }

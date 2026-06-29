@@ -1,6 +1,6 @@
 import common from '@ohos.app.ability.common';
-import { ITXVodPlayCallback, TXVodPlayConfig, TXVodPlayer, TXVodDef } from 'liteavsdk/src/main/ets/k/Index';
-import { TXBitrateItem, TXPlayInfoParams, TXSubtitleRenderModel, TXTrackInfo } from 'liteavsdk/src/main/ets/k/a3/h3';
+import { ITXVodPlayCallback, TXVodPlayConfig, TXVodPlayer, TXVodDef } from '@tencentcloud/liteavsdk_professional/src/main/ets/k/Index';
+import { TXBitrateItem, TXPlayInfoParams, TXSubtitleRenderModel, TXTrackInfo } from '@tencentcloud/liteavsdk_professional/src/main/ets/k/a3/h3';
 import FTXEventUtils from '../FTXEventUtils';
 import {
   BoolMsg,
